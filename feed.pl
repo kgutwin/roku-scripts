@@ -5,7 +5,7 @@ use strict;
 use Fcntl;
 use MythTV;
 use MP4::Info;
-use HTML::Entities; 
+use HTML::Entities qw(encode_entities_numeric); 
  
 # A link to the folder where your feed and recordings are
 # located. Make sure you do NOT end the link with a "/"
@@ -40,47 +40,93 @@ sub get_show_info {
     $fn =~ s/\.mp4$//;
     $r->{basename} = $fn;
     my $show = $Myth->new_recording($fn);
-    $r->{title} = $show->format_name('%T', ' ', ' ', 1, 0, 1);
-    $r->{episode} = $show->format_name('%S', ' ', ' ', 1, 0, 1);
-    $r->{summary} = $show->format_name('%R', ' ', ' ', 1, 0, 1);
-    $r->{chan} = $show->format_name('%cn %cc', ' ', ' ', 1, 0, 1);
-    $r->{progtime} = $show->format_name('%m-%d-%Y %g:%i %A', ' ', ' ', 1, 0, 1);
-    $r->{hdsd} = $show->{'hdtv'} ? "HD" : "SD";
-    $r->{chanid} = $show->{'chanid'};
-    $r->{starttime} = $show->{'starttime'};
-    $r->{recgroup} = $show->{'recgroup'};
-    
-    # some format changes
-    $r->{chan} =~ s/_/-/g;
+    if (defined $show) {
+	$r->{title} = $show->format_name('%T', ' ', ' ', 1, 0, 1);
+	$r->{episode} = $show->format_name('%S', ' ', ' ', 1, 0, 1);
+	if ($r->{episode} eq "Untitled") { 
+	    #$r->{episode} = $r->{title}; 
+	    # apparently we have to format this name ourselves
+	    my ($spsecond, $spminute, $sphour, $spday, $spmonth, $spyear, $spwday) = localtime($show->{'starttime'});
+	    my @abwday = qw(Sun Mon Tue Wed Thu Fri Sat);
+	    my @abmonth = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
+	    $spyear += 1900;
+	    $r->{episode} = "$abwday[$spwday] $abmonth[$spmonth] $spday $spyear";
+	}
+	$r->{summary} = $show->format_name('%R', ' ', ' ', 1, 0, 1);
+	$r->{chan} = $show->format_name('%cn %cc', ' ', ' ', 1, 0, 1);
+	$r->{progtime} = $show->format_name('%m-%d-%Y %g:%i %A', ' ', ' ', 1, 0, 1);
+	$r->{hdsd} = $show->{'hdtv'} ? "HD" : "SD";
+	$r->{chanid} = $show->{'chanid'};
+	$r->{starttime} = $show->{'starttime'};
+	$r->{recgroup} = $show->{'recgroup'};
 
-    # and derived
-    $r->{recent} = ((time - $show->{'recstartts'}) < 7*24*60*60) ? 1 : 0;
-    $r->{unwatched} = ! $show->{'is_watched'};
+	# some format changes
+	$r->{chan} =~ s/_/-/g;
+	
+	# and derived
+	$r->{recent} = ((time - $show->{'recstartts'}) < 7*24*60*60) ? 1 : 0;
+	$r->{unwatched} = ! $show->{'is_watched'};
+
+    } else {
+	# not found in mythtv database, fake some values
+	($r->{episode}, $r->{title}) = split(/[ _]*-[ _]*/, $fn);
+	$r->{summary} = $fn;
+
+	# fix underscores
+	$r->{episode} =~ s/_/ /g;
+	$r->{title} =~ s/_/ /g;
+	$r->{summary} =~ s/_/ /g;
+
+	# set blanks
+	$r->{chan} = $r->{progtime} = $r->{hdsd} = $r->{chanid} = "";
+	$r->{starttime} = $r->{recgroup} = "";
+	$r->{recent} = 0;
+	$r->{unwatched} = 0;
+    }
+
     
     return $r;
 }
 
+sub find_img($) {
+    my ($id) = @_;
+
+    my $img = "";
+    if (-f "$VIDDIR/$id.mpg.png") {
+	$img = "$id.mpg.png";
+    } elsif (-f "$VIDDIR/$id.mp4.png") {
+	$img = "$id.mp4.png";
+    } else {
+	# try a quick extraction
+	system("ffmpeg -i '$VIDDIR/$id.mp4' -ss 00:00:25 -s 320x180" . 
+	       " -vframes 1 '$VIDDIR/$id.mp4.png' >/dev/null 2>&1");
+	$img = "$id.mp4.png" if (-f "$VIDDIR/$id.mp4.png");
+    }
+
+    return $img;
+}
 
 sub output_show($) {
     my ($show) = @_;
 
     # convenience extractions
     my $f = $show->{basename};
-    my $episode = encode_entities($show->{episode});
+    my $episode = encode_entities_numeric($show->{episode});
     my $id = $show->{basename};
     $id =~ s/[^0-9]//g;
     my $hdsd = $show->{hdsd};
     my $bitrate = $show->{bitrate};
-    my $progtime = encode_entities($show->{progtime});
-    my $summary = encode_entities($show->{summary});
+    my $progtime = encode_entities_numeric($show->{progtime});
+    my $summary = encode_entities_numeric($show->{summary});
     my $chan = $show->{chan};
     my $length = $show->{length};
     my ($chanid, $starttime) = ($show->{chanid}, $show->{starttime});
 
+    my $img = "$BASEURL/video/" . find_img($f);
+
     # Adds the item information for each .MP4 file to the a string
     # using the information pulled from the file name above
-    my $item = "  <item sdImg=\"$BASEURL/video/$f.mpg.png\"";
-    $item .= " hdImg=\"$BASEURL/video/$f.mpg.png\">\n";
+    my $item = "  <item sdImg=\"$img\" hdImg=\"$img\">\n";
     $item .= "    <title>$episode</title>\n";
     $item .= "    <contentId>$id</contentId>\n";
     $item .= "    <contentType>TV</contentType>\n";
@@ -152,9 +198,9 @@ foreach my $File (@Files) {
 
 	if (!exists $cats{$cat}) {
 	    $cats{$cat} = { 
-		title => encode_entities($show->{title}),
+		title => encode_entities_numeric($show->{title}),
 		eps => 0,
-		img => "$BASEURL/video/" . $show->{basename} . ".mpg.png",
+		img => "$BASEURL/video/" . find_img($show->{basename}),
 		feed => "$BASEURL/$cat",
 		xml => "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<feed>\n",
 		'r.xml' => "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<feed>\n",
@@ -199,3 +245,6 @@ foreach my $cat (keys %cats) {
 	close CATXML;
     }
 }
+
+system("/usr/bin/xsltproc --output '$XMLDIR/roku.html' '$XMLDIR/feedstyle.xsl' '$XMLDIR/roku.xml'");
+

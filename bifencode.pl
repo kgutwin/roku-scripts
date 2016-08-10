@@ -26,7 +26,7 @@ unless (-e $directory."/".$file) {
 mkdir "/tmp/$file";
  
 # for 4:3 SD Only
-system ("ffmpeg -i $directory/$file -r .1 -s 240x180 /tmp/$file/%08d.jpg >> /dev/null 2>&1");
+system ("ffmpeg -i '$directory/$file' -r .1 -s 240x180 '/tmp/$file/%08d.jpg' >> /dev/null 2>&1");
  
 # Renumber images in directories to a zero-based index, required because
 # ffmpeg number starting from #1 which would put timing out by 10 secs
@@ -44,7 +44,7 @@ for (my $image_num = 0; $image_num < ($#bifs + 1) - $dropnum; $image_num++) {
 chdir("/tmp");
 
 # now use biftool to create the bif files
-system("$SCRIPTDIR/biftool -t 10000 /tmp/$file");
+system("$SCRIPTDIR/biftool -t 10000 '/tmp/$file'");
  
 # delete the directories and the files in them
 rmtree(["/tmp/$file"]);
