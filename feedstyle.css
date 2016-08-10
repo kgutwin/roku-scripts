@@ -1,0 +1,35 @@
+body {
+  font-family: sans-serif;
+  padding-bottom: 1em;
+}
+
+img.program-thumb {
+  float: right;
+  margin: 1em;
+}
+
+h2 {
+  clear: both;
+  margin: 6px 3px 3px 3px;
+  padding: 3px 3px 3px 1em;
+  border-top: 2px dashed gray;
+  border-left: 2px dashed gray;
+  background: #d0fed0;
+}
+
+div.info-box {
+    float: left;
+    border: 1px dotted black;
+    padding: 1px;
+    margin-right: 1em;
+    background: #d0d0fe;
+    font-size: small;
+    width: 11em;
+}
+div.info-box span {
+    margin-left: 0.2em;
+    margin-right: 0.2em;
+}
+div.info-box span.quality {
+    color: red;
+}
