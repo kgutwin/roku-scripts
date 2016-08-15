@@ -70,6 +70,7 @@ sub get_show_info {
     } else {
 	# not found in mythtv database, fake some values
 	($r->{episode}, $r->{title}) = split(/[ _]*-[ _]*/, $fn);
+	$r->{title} = $r->{title} // "Unknown";
 	$r->{summary} = $fn;
 
 	# fix underscores
