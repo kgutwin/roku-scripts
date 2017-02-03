@@ -6,6 +6,7 @@ use Fcntl;
 use MythTV;
 use MP4::Info;
 use HTML::Entities qw(encode_entities_numeric); 
+use Digest::MD5 qw(md5_hex);
  
 # A link to the folder where your feed and recordings are
 # located. Make sure you do NOT end the link with a "/"
@@ -194,7 +195,8 @@ foreach my $File (@Files) {
 	
 	my $item = output_show($show);
 
-	my $cat = crypt($show->{title},"ab");
+	#my $cat = crypt($show->{title},"ab");
+	my $cat = md5_hex($show->{title});
 	$cat =~ s,/,-,g;
 
 	if (!exists $cats{$cat}) {
